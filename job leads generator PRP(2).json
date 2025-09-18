@@ -1,0 +1,413 @@
+{
+  "name": "job leads generator PRP",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Job Scraper",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Job Title",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Location",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Telangana"
+                  },
+                  {
+                    "option": "Andhra pradesh"
+                  },
+                  {
+                    "option": "Tamilnadu"
+                  },
+                  {
+                    "option": "Kerala"
+                  },
+                  {
+                    "option": "Karnataka"
+                  },
+                  {
+                    "option": "Maharastha"
+                  },
+                  {
+                    "option": "Delhi"
+                  }
+                ]
+              }
+            },
+            {
+              "fieldLabel": "Job Type",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  {
+                    "option": "Full-Time"
+                  },
+                  {
+                    "option": "Part-time"
+                  }
+                ]
+              },
+              "multiselect": true
+            },
+            {
+              "fieldLabel": "Email ID",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldType": "hiddenField"
+            }
+          ]
+        },
+        "options": {
+          "buttonLabel": "Submit"
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        -144
+      ],
+      "id": "413035ea-dde5-473f-8bdd-78a7294f1409",
+      "name": "On form submission",
+      "webhookId": "6c0603c2-37bd-4570-8e65-95e4e925e668",
+      "alwaysOutputData": true,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "url": "=https://api.adzuna.com/v1/api/jobs/in/search/{{$runIndex + 1}}?app_id=c3dc71e7&app_key=92794c9d98188916f847ee4aa1dfa2b2&results_per_page=50&what={{$node[\"On form submission\"].json[\"Job Title\"] }}&where={{ $node[\"On form submission\"].json[\"Location\"] }}&content-type=application/json",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        -144
+      ],
+      "id": "b369fc98-2d7e-47e9-bbbe-784ca70bd129",
+      "name": "HTTP Request",
+      "executeOnce": false,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const jobItems = items.map(item => item.json);\nconst spreadsheetUrl = \"https://docs.google.com/spreadsheets/d/1FUFm7azg_tWE3aAoErgyI4gunXGHd_a-g8xhyY/edit#gid=2002003970\";\n\nlet summaryHtml = `<p>Hello,</p>`;\n\nif (!Array.isArray(jobItems) || jobItems.length === 0) {\n  summaryHtml += `\n    <p>Unfortunately, there are no new job listings available at the moment.</p>\n    <p>Please check back later for any updates.</p>\n  `;\n} else {\n  summaryHtml += `\n    <p>Here is a summary of the new jobs:</p>\n    <ul>\n  `;\n\n  for (const item of jobItems) {\n    summaryHtml += `\n      <li>\n        <strong>${item.title || 'No title'}</strong> at ${item.company || 'Unknown'}<br>\n        Location: ${item.location || 'Unknown'}<br>\n        <a href=\"${item.link || '#'}\">Apply here</a>\n      </li>\n    `;\n  }\n\n  summaryHtml += `\n    </ul>\n    <p>You can also view the full spreadsheet here: <a href=\"${spreadsheetUrl}\">Link to Spreadsheet</a></p>\n  `;\n}\n\nsummaryHtml += `<p>Thank you.</p>`;\n\nreturn [\n  {\n    json: {\n      emailBody: summaryHtml\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        208
+      ],
+      "id": "311408ad-1537-4902-9952-acc3e0611599",
+      "name": "Code1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $node[\"On form submission\"].json[\"Email ID\"] }}",
+        "subject": "Jobs",
+        "message": "={{ $node[\"Code1\"].json[\"emailBody\"] }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        208
+      ],
+      "id": "4bd94d4f-2525-47f1-aa41-06144e1dfcf0",
+      "name": "Send a message",
+      "webhookId": "53c4ea88-c50b-4e0a-8576-a2a04386cdce",
+      "alwaysOutputData": true,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "RTmusRUMGIL9aYa1",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const allItems = $input.all();\nlet jobs = [];\n\nfor (const item of allItems) {\n  if (Array.isArray(item.json.results)) {\n    jobs = jobs.concat(item.json.results);\n  }\n}\n\nreturn jobs.map(job => ({\n  json: {\n    title: job.title || 'No title',\n    company: job.company?.display_name || 'Unknown',\n    location: job.location?.display_name || 'Unknown',\n    description: job.description || 'No description',\n    pay: job.salary_min && job.salary_max ? `INR${job.salary_min} - INR${job.salary_max}` : 'Not specified',\n    link: job.redirect_url || ''\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        -176
+      ],
+      "id": "018dd18c-1d9d-4753-bc2e-a89bcd8ab651",
+      "name": "Code",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "batchSize": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        720,
+        -144
+      ],
+      "id": "f0c5b6ff-502c-428d-8f0d-28e685a5dd11",
+      "name": "Loop Over Items",
+      "alwaysOutputData": false,
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1FlU7mTa2y_uHE3aAuEgqGyl4gunXGh9d_dL-qg8xNyY",
+          "mode": "list",
+          "cachedResultName": "Data sheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FlU7mTa2y_uHE3aAuEgqGyl4gunXGh9d_dL-qg8xNyY/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1FlU7mTa2y_uHE3aAuEgqGyl4gunXGh9d_dL-qg8xNyY/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pay",
+              "displayName": "pay",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "link",
+              "displayName": "link",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1632,
+        -176
+      ],
+      "id": "3448d073-f362-46b0-864a-fca3d902cd87",
+      "name": "Append or update row in sheet",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "9UqhyQ1m1XPhPA1i",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ce8ab1ed-9b2a-44a5-b808-b002dafd8808",
+              "leftValue": "={{ $json.results.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        -160
+      ],
+      "id": "9b09d2da-ca0a-483c-87ce-6503c578d39f",
+      "name": "If",
+      "alwaysOutputData": false,
+      "executeOnce": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "5470d459-96b5-4bfd-b8d7-e70d3d34a707",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "51c81fc19ecdf49f4c00cd2330a39def9e1b76953ea9ee60d518786dfa381355"
+  },
+  "id": "mvCAwljnogaguSjg",
+  "tags": []
+}
